@@ -1,0 +1,71 @@
+{
+  "source": "Open-Meteo Historical Weather API",
+  "source_url": "https://open-meteo.com/en/docs/historical-weather-api",
+  "location": {
+    "name": "Pune, Maharashtra, India",
+    "latitude": 18.52,
+    "longitude": 73.86
+  },
+  "daily": [
+    {
+      "date": "2026-10-01",
+      "temperature_max_c": 32.7,
+      "apparent_temperature_max_c": 35.4,
+      "precipitation_mm": 0.2
+    },
+    {
+      "date": "2026-10-02",
+      "temperature_max_c": 32.3,
+      "apparent_temperature_max_c": 34.6,
+      "precipitation_mm": 0.0
+    },
+    {
+      "date": "2026-10-03",
+      "temperature_max_c": 32.5,
+      "apparent_temperature_max_c": 34.8,
+      "precipitation_mm": 0.0
+    },
+    {
+      "date": "2026-10-04",
+      "temperature_max_c": 33.4,
+      "apparent_temperature_max_c": 36.1,
+      "precipitation_mm": 0.0
+    },
+    {
+      "date": "2026-10-05",
+      "temperature_max_c": 32.2,
+      "apparent_temperature_max_c": 34.3,
+      "precipitation_mm": 2.4
+    },
+    {
+      "date": "2026-10-06",
+      "temperature_max_c": 33.3,
+      "apparent_temperature_max_c": 34.0,
+      "precipitation_mm": 0.1
+    },
+    {
+      "date": "2026-10-07",
+      "temperature_max_c": 33.7,
+      "apparent_temperature_max_c": 34.9,
+      "precipitation_mm": 0.0
+    },
+    {
+      "date": "2026-10-08",
+      "temperature_max_c": 33.0,
+      "apparent_temperature_max_c": 34.0,
+      "precipitation_mm": 0.0
+    },
+    {
+      "date": "2026-10-09",
+      "temperature_max_c": 34.1,
+      "apparent_temperature_max_c": 35.0,
+      "precipitation_mm": 0.0
+    },
+    {
+      "date": "2026-10-10",
+      "temperature_max_c": 33.6,
+      "apparent_temperature_max_c": 34.5,
+      "precipitation_mm": 0.0
+    }
+  ]
+}

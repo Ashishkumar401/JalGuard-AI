@@ -1,0 +1,770 @@
+﻿
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  AlertTriangle,
+  ArrowUpRight,
+  CheckCircle2,
+  CloudRain,
+  Droplets,
+  Gauge,
+  ShieldCheck,
+  Waves,
+  RefreshCw,
+  Info,
+  ExternalLink,
+} from 'lucide-react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  BarChart,
+  Bar,
+} from 'recharts';
+
+import { investigateWaterRisk } from './investigationEngine';
+
+const fmt = (v) =>
+  Number.isFinite(Number(v)) ? Number(v).toFixed(1) : 'â€”';
+
+function scoreWeather(d) {
+  // Transparent demonstration heuristic, NOT a validated shortage probability.
+  const heat = Math.max(
+    0,
+    Math.min(
+      65,
+      ((Number(d.apparent_temperature_max_c || 0) - 24) / 16) * 65
+    )
+  );
+
+  const dry = Math.max(
+    0,
+    Math.min(35, 35 - Number(d.precipitation_mm || 0))
+  );
+
+  return Math.round(Math.min(100, heat + dry));
+}
+
+export default function App() {
+  const [weather, setWeather] = useState(null);
+  const [benchmark, setBenchmark] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refresh, setRefresh] = useState(0);
+  const [tab, setTab] = useState('overview');
+  const [heatWeight, setHeatWeight] = useState(60);
+  const [rainWeight, setRainWeight] = useState(40);
+  const [mlResult, setMlResult] = useState(null);
+  const [mlLoading, setMlLoading] = useState(false);
+  const [mlError, setMlError] = useState('');
+
+  async function runMlPrediction() {
+    setMlLoading(true);
+    setMlError('');
+    setMlResult(null);
+    const readings = {
+      "Pressure 1 Out": 5.25,
+      "Pressure 2 Out": 1.76,
+      "Pressure 3 In": 0.79,
+      "Pressure 4 In": 0.94,
+      "Water Flow 1": 0.37,
+      "Water Flow 2": 0.39,
+      "Water Flow 3": 0.32,
+      "WaterFlow 4": 0.43,
+      "VFD 1": 37.9,
+      "VFD 2": 0,
+      "VFD 3": 40,
+      "VFD 4-1": 0,
+      "VFD 4-2": 60,
+      "Analog Valve 1": 65.7,
+      "Analog Valve 2": 62.6
+    };
+    readings["Water Flow 4"] = readings["WaterFlow 4"];
+    delete readings["WaterFlow 4"];
+    try {
+      const response = await fetch('/api-ml/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ readings })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(JSON.stringify(data.detail || data));
+      setMlResult(data);
+    } catch (error) {
+      setMlError(error.message || 'Could not reach the ML API');
+    } finally {
+      setMlLoading(false);
+    }
+  }
+
+useEffect(() => {
+    let alive = true;
+
+    Promise.all([
+      fetch('/data/pune_weather.json').then((r) => {
+        if (!r.ok) throw Error('Weather data missing');
+        return r.json();
+      }),
+      fetch('/data/benchmark_results.json').then((r) => {
+        if (!r.ok) throw Error('Benchmark data missing');
+        return r.json();
+      }),
+    ])
+      .then(([w, b]) => {
+        if (alive) {
+          setWeather(w);
+          setBenchmark(b);
+          setLoading(false);
+        }
+      })
+      .catch((e) => {
+        console.error(e);
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [refresh]);
+
+  const daily = weather?.daily || [];
+  const latest = daily[daily.length - 1];
+  const records = benchmark?.records || [];
+  const flagged = records.filter((r) => r.flagged);
+
+  const stress = latest ? scoreWeather(latest) : 0;
+
+  const simScore = Math.round(
+    Math.min(
+      100,
+      (stress * heatWeight / 60) * 0.65 +
+        (Math.max(0, 35 - Number(latest?.precipitation_mm || 0)) *
+          rainWeight /
+          40) *
+          0.35
+    )
+  );
+
+  const chartData = daily.map((d) => ({
+    date: d.date.slice(5),
+    temp: Number(d.temperature_max_c),
+    feels: Number(d.apparent_temperature_max_c),
+    rain: Number(d.precipitation_mm),
+    score: scoreWeather(d),
+  }));
+
+  const anomalies = records.map((r) => ({
+    time: r.timestamp.slice(11),
+    flow: Number(r.flow),
+    pressure: Number(r.pressure),
+  }));
+
+  // Connect weather and sensor demo data to our investigation engine.
+  const investigation = useMemo(
+    () =>
+      investigateWaterRisk({
+        weather: daily,
+        sensors: records.map((r) => ({
+          ...r,
+          score: Number(r.anomaly_score) * 100,
+        })),
+      }),
+    [daily, records]
+  );
+
+  const evidence = useMemo(
+    () =>
+      latest
+        ? [
+            {
+              title: 'Weather observation',
+              detail: `Maximum apparent temperature: ${fmt(
+                latest.apparent_temperature_max_c
+              )} Â°C`,
+              type: 'Open-Meteo weather data',
+            },
+            {
+              title: 'Rainfall observation',
+              detail: `${fmt(latest.precipitation_mm)} mm for the displayed day`,
+              type: 'Open-Meteo weather data',
+            },
+            {
+              title: 'Network anomaly',
+              detail: `${flagged.length} of ${records.length} demo records flagged`,
+              type: 'Synthetic demo records',
+            },
+          ]
+        : [],
+    [latest, flagged.length, records.length]
+  );
+
+  if (loading) {
+    return <div className="loading">Loading JalGuard AIâ€¦</div>;
+  }
+
+  if (!weather || !benchmark) {
+    return (
+      <div className="loading">
+        <h2>Data could not load</h2>
+        <p>Check frontend/public/data files and reload.</p>
+        <button onClick={() => setRefresh((x) => x + 1)}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  const findingWeather = investigation.findings.find(
+    (f) => f.type === 'weather'
+  );
+  const findingRain = investigation.findings.find(
+    (f) => f.type === 'rainfall'
+  );
+  const findingNetwork = investigation.findings.find(
+    (f) => f.type === 'network'
+  );
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand">
+          <div className="brand-icon">
+            <Droplets size={23} />
+          </div>
+          <div>
+            <b>
+              JalGuard <span>AI</span>
+            </b>
+            <small>WATER INTELLIGENCE</small>
+          </div>
+        </div>
+
+        <div className="workspace">
+          <i className="live-dot" /> HACKATHON DEMO
+          <span className="tiny-pill">PUNE</span>
+        </div>
+
+        <nav>
+          {[
+            ['overview', Gauge, 'Overview'],
+            ['network', Waves, 'Network anomalies'],
+            ['investigation', ShieldCheck, 'AI investigation'],
+            ['simulator', Activity, 'What-if simulator'],
+          ].map(([id, Icon, label]) => (
+            <button
+              key={id}
+              className={tab === id ? 'nav active' : 'nav'}
+              onClick={() => setTab(id)}
+            >
+              <Icon size={17} />
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-bottom">
+          <CheckCircle2 size={16} />
+          <div>
+            <b>Demo mode active</b>
+            <small>Source limitations are disclosed</small>
+          </div>
+        </div>
+      </aside>
+
+      <main className="main">
+        <header className="topbar">
+          <div>
+            <div className="eyebrow">
+              ENVIRONMENTAL HACKS Â· HEAT & WATER
+            </div>
+            <h1>
+              {{
+                overview: 'Water risk overview',
+                network: 'Network anomaly lab',
+                investigation: 'Evidence-led investigation',
+                simulator: 'What-if simulator',
+              }[tab]}
+            </h1>
+            <p className="subhead">
+              Transparent decision support for water stress and network
+              anomalies.
+            </p>
+          </div>
+
+          <button
+            className="refresh"
+            onClick={() => setRefresh((x) => x + 1)}
+          >
+            <RefreshCw size={15} /> Reload data
+          </button>
+        </header>
+
+        {tab === 'overview' && (
+          <>
+            <section className="hero">
+              <div className="hero-copy">
+                <div className="hero-label">
+                  <i className="pulse" /> PUNE Â· WEATHER SIGNAL
+                </div>
+                <h2>
+                  Spot risk early.
+                  <br />
+                  <em>Act on evidence.</em>
+                </h2>
+                <p>
+                  JalGuard combines public weather signals with a separate
+                  network-anomaly demonstration to help teams investigate
+                  what deserves attention.
+                </p>
+                <button
+                  className="hero-button"
+                  onClick={() => setTab('investigation')}
+                >
+                  Open investigation <ArrowUpRight size={16} />
+                </button>
+              </div>
+
+              <div className="hero-graphic">
+                <div className="ring ring-one" />
+                <div className="ring ring-two" />
+                <div className="ring ring-three" />
+                <div className="water-drop">
+                  <Droplets size={55} />
+                </div>
+                <div className="orbit-label label-a">WEATHER SIGNAL</div>
+                <div className="orbit-label label-b">EVIDENCE CHECK</div>
+                <div className="orbit-label label-c">ACTION PLAN</div>
+              </div>
+            </section>
+
+            <section className="metric-grid">
+              <Metric
+                icon={<CloudRain size={18} />}
+                label="Heat & rainfall indicator"
+                value={`${stress}/100`}
+                foot="Heuristic Â· not shortage probability"
+                tone="teal"
+              />
+              <Metric
+                icon={<AlertTriangle size={18} />}
+                label="Flagged demo records"
+                value={flagged.length}
+                foot={`Out of ${records.length} synthetic records`}
+                tone="amber"
+              />
+              <Metric
+                icon={<Activity size={18} />}
+                label="Latest max apparent temp."
+                value={`${fmt(latest?.apparent_temperature_max_c)}Â°`}
+                foot={`${latest?.date || 'No date'} Â· Â°C`}
+                tone="blue"
+              />
+              <Metric
+                icon={<ShieldCheck size={18} />}
+                label="Model evaluation"
+                value="Pending"
+                foot="Benchmark labels not evaluated"
+                tone="purple"
+              />
+            </section>
+
+            <section className="two-col">
+              <div className="panel">
+                <PanelTitle
+                  title="Weather trend"
+                  tag="WEATHER"
+                  desc="Daily maximum and apparent temperature"
+                />
+                <div className="chart">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient
+                          id="tempFill"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="#25b7a5"
+                            stopOpacity={0.3}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="#25b7a5"
+                            stopOpacity={0}
+                          />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#e7eeec"
+                      />
+                      <XAxis dataKey="date" tickLine={false} axisLine={false} />
+                      <YAxis tickLine={false} axisLine={false} width={34} />
+                      <Tooltip />
+                      <Area
+                        type="monotone"
+                        dataKey="temp"
+                        name="Max temp (Â°C)"
+                        stroke="#158d80"
+                        fill="url(#tempFill)"
+                        strokeWidth={2.5}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="feels"
+                        name="Apparent max (Â°C)"
+                        stroke="#e9a23b"
+                        fill="transparent"
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="chart-foot">
+                  <span>
+                    <i className="legend-dot teal-dot" /> Max temperature
+                  </span>
+                  <span>
+                    <i className="legend-dot amber-dot" /> Apparent temperature
+                  </span>
+                </div>
+              </div>
+
+              <div className="panel">
+                <PanelTitle
+                  title="Evidence feed"
+                  tag="TRACEABLE"
+                  desc="What current data supports"
+                />
+                {evidence.map((e, i) => (
+                  <div className="evidence-row" key={e.title}>
+                    <div className="evidence-number">0{i + 1}</div>
+                    <div className="evidence-body">
+                      <b>{e.title}</b>
+                      <p>{e.detail}</p>
+                      <small>{e.type}</small>
+                    </div>
+                  </div>
+                ))}
+                <div className="notice">
+                  <Info size={16} />
+                  <span>
+                    Weather stress and network anomaly are separate signals,
+                    not proof of a local leak.
+                  </span>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+
+        {tab === 'network' && (
+          <section className="panel large-panel">
+            <PanelTitle
+              title="Water-network anomaly lab"
+              tag="SYNTHETIC DEMO"
+              desc="These are demonstration sensor examples. Replace them with evaluated BattLeDIM data before making benchmark claims."
+            />
+
+            <div className="chart big-chart">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={anomalies}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e7eeec" />
+                  <XAxis dataKey="time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar
+                    dataKey="flow"
+                    name="Flow (demo units)"
+                    fill="#1aa393"
+                    radius={[5, 5, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="pressure"
+                    name="Pressure (demo units)"
+                    fill="#e9a23b"
+                    radius={[5, 5, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="record-list">
+              {records.map((r) => (
+                <div className="record" key={r.id}>
+                  <div>
+                    <b>{r.id}</b>
+                    <small>
+                      {r.timestamp} Â· {r.label}
+                    </small>
+                  </div>
+                  <div className="record-stats">
+                    <span>
+                      Flow <b>{r.flow}</b>
+                    </span>
+                    <span>
+                      Pressure <b>{r.pressure}</b>
+                    </span>
+                    <span>
+                      Score <b>{Math.round(r.anomaly_score * 100)}%</b>
+                    </span>
+                  </div>
+                  <span
+                    className={
+                      r.flagged ? 'flag flag-red' : 'flag flag-green'
+                    }
+                  >
+                    {r.flagged ? 'Flagged' : 'Normal'}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="notice">
+              <Info size={16} />
+              <span>
+                These are synthetic records. Precision and recall are not
+                available until real benchmark labels are evaluated.
+              </span>
+            </div>
+          </section>
+        )}
+
+        {tab === 'investigation' && (
+          <section className="panel large-panel">
+            <PanelTitle
+              title="Evidence-led investigation"
+              tag="RULE-BASED ENGINE"
+              desc="Findings are generated from the loaded weather and sensor records. No hosted AI service or downloaded model is required."
+            />
+
+            <div className="investigation-grid">
+              <Investigation
+                n="01"
+                title="Observe"
+                text={
+                  findingWeather?.finding ||
+                  'No weather finding is available.'
+                }
+                tag={findingWeather?.evidence || 'Weather data required'}
+              />
+
+              <Investigation
+                n="02"
+                title="Check rainfall"
+                text={
+                  findingRain?.finding ||
+                  'No rainfall finding is available.'
+                }
+                tag={findingRain?.evidence || 'Weather data required'}
+              />
+
+              <Investigation
+                n="03"
+                title="Detect"
+                text={
+                  findingNetwork?.finding ||
+                  'No network finding is available.'
+                }
+                tag={findingNetwork?.evidence || 'Sensor data required'}
+              />
+
+              <Investigation
+                n="04"
+                title="Recommend"
+                text={investigation.recommendedAction}
+                tag="Next action"
+              />
+            </div>
+
+            <div className="trust-banner">
+              <ShieldCheck size={22} />
+              <div>
+                <b>Investigation conclusion</b>
+                <p>{investigation.conclusion}</p>
+                <p>
+                  A flagged record is only a screening signal. Validate
+                  sensor location, timestamps and benchmark labels before
+                  claiming a real leak or shortage.
+                </p>
+              </div>
+            </div>
+
+            <div className="notice">
+              <Info size={16} />
+              <span>
+                This is a lightweight, rule-based investigation engineâ€”not a
+                trained AI model. Weather and synthetic sensor findings are
+                kept separate.
+              </span>
+            </div>
+          </section>
+        )}
+
+        <section className="panel" style={{ margin: '20px 0', padding: '20px' }}>
+          <div className="eyebrow">EXPERIMENTAL MODEL</div>
+          <h2>ML Prediction (Experimental)</h2>
+          <p>Demo sensor readings only — not live Pune water-network data.</p>
+          <button className="secondary-button" onClick={runMlPrediction} disabled={mlLoading}>
+            {mlLoading ? 'Running prediction...' : 'Run ML Prediction'}
+          </button>
+          {mlError && <p role="alert">API error: {mlError}</p>}
+          {mlResult && (
+            <div style={{ marginTop: '12px' }}>
+              <h3>{mlResult.interpretation}</h3>
+              <p>Event probability: {(mlResult.event_probability * 100).toFixed(1)}%</p>
+              <p><strong>Experimental only:</strong> {mlResult.warning}</p>
+            </div>
+          )}
+        </section>
+        {tab === 'simulator' && (
+          <section className="panel large-panel">
+            <PanelTitle
+              title="What-if simulator"
+              tag="ASSUMPTION TESTING"
+              desc="Explore how adjustable weights change the indicator. This is not a prediction of actual water supply."
+            />
+
+            <div className="simulator-layout">
+              <div className="slider-area">
+                <label>
+                  Heat contribution <b>{heatWeight}%</b>
+                </label>
+                <input
+                  type="range"
+                  min="20"
+                  max="100"
+                  value={heatWeight}
+                  onChange={(e) => setHeatWeight(Number(e.target.value))}
+                />
+                <p>Change the weight given to apparent temperature.</p>
+
+                <label>
+                  Rainfall/dryness contribution <b>{rainWeight}%</b>
+                </label>
+                <input
+                  type="range"
+                  min="10"
+                  max="80"
+                  value={rainWeight}
+                  onChange={(e) => setRainWeight(Number(e.target.value))}
+                />
+                <p>Change the weight given to rainfall.</p>
+
+                <button
+                  className="secondary-button"
+                  onClick={() => {
+                    setHeatWeight(60);
+                    setRainWeight(40);
+                  }}
+                >
+                  Reset assumptions
+                </button>
+              </div>
+
+              <div className="sim-result">
+                <div className="eyebrow">ILLUSTRATIVE SCORE</div>
+                <div className="sim-number">
+                  {simScore}
+                  <small>/100</small>
+                </div>
+                <div className="meter">
+                  <span style={{ width: `${simScore}%` }} />
+                </div>
+                <h3>
+                  {simScore >= 70
+                    ? 'Higher indicator'
+                    : simScore >= 40
+                      ? 'Moderate indicator'
+                      : 'Lower indicator'}
+                </h3>
+                <p>
+                  Based on the displayed weather sample and selected
+                  weightsâ€”not a measured shortage probability.
+                </p>
+                <div className="notice">
+                  <Info size={16} />
+                  <span>
+                    Weights are user assumptions, not learned model parameters.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        <footer>
+          <div>
+            <b>JalGuard AI</b>
+            <span> Â· Environmental Hacks Â· Heat & Water</span>
+          </div>
+          <div className="footer-links">
+            <a
+              href="https://open-meteo.com/en/docs"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open-Meteo <ExternalLink size={12} />
+            </a>
+            <a
+              href="https://data.opencity.in/dataset/?organization=pune-municipal-corporation"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Pune data catalog <ExternalLink size={12} />
+            </a>
+            <a
+              href="https://zenodo.org/records/4017659"
+              target="_blank"
+              rel="noreferrer"
+            >
+              BattLeDIM <ExternalLink size={12} />
+            </a>
+          </div>
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+function Metric({ icon, label, value, foot, tone }) {
+  return (
+    <div className="metric-card">
+      <div className={`metric-icon ${tone}`}>{icon}</div>
+      <div className="metric-label">{label}</div>
+      <div className="metric-value">{value}</div>
+      <div className="metric-foot">{foot}</div>
+    </div>
+  );
+}
+
+function PanelTitle({ title, tag, desc }) {
+  return (
+    <div className="panel-title">
+      <div>
+        <h2>{title}</h2>
+        <p>{desc}</p>
+      </div>
+      <span className="panel-tag">{tag}</span>
+    </div>
+  );
+}
+
+function Investigation({ n, title, text, tag }) {
+  return (
+    <div className="investigation-card">
+      <div className="step-no">{n}</div>
+      <h3>{title}</h3>
+      <p>{text}</p>
+      <span className="source-chip">{tag}</span>
+    </div>
+  );
+}
+
