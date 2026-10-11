@@ -1,0 +1,3 @@
+category,file,actual_events,predicted_events,precision,recall,F1,balanced_accuracy
+Cyberattack,CyberEvent1-4.xlsx,715,5869,0.122,1.0,0.217,0.5
+Leakage,LeakEvent1.xlsx,828,898,0.922,1.0,0.959,0.935

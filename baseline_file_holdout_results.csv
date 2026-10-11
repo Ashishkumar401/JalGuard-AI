@@ -1,0 +1,10 @@
+category,file,rows,positive_label_1,F1_label_1,balanced_accuracy
+Clean,CleanData.xlsx,9743,0,0.0,1.0
+Cyberattack,CyberEvent1-4.xlsx,5869,715,0.1548,0.542
+Leakage,LeakEvent1.xlsx,1368,828,0.0,0.4926
+Leakage,LeakEvent2.xlsx,1385,614,0.0257,0.5065
+Leakage,LeakEvent3.xlsx,1355,696,0.1215,0.5323
+Sensor Failure,SensorEvent1.xlsx,1360,177,0.0,0.4945
+Sensor Failure,SensorEvent23.xlsx,1362,152,0.0,0.4992
+Sensor Failure,SensorEvent45.xlsx,1361,159,0.0,0.5
+Sensor Failure,SensorEvent67.xlsx,1362,122,0.0,0.4931

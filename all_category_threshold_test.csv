@@ -1,0 +1,10 @@
+category,file,rows,actual_events,predicted_events,precision,recall,F1,balanced_accuracy
+Clean,CleanData.xlsx,9743,0,1997,0.0,0.0,0.0,0.795
+Cyberattack,CyberEvent1-4.xlsx,5869,715,5768,0.124,1.0,0.221,0.51
+Leakage,LeakEvent1.xlsx,1368,828,1065,0.777,1.0,0.875,0.781
+Leakage,LeakEvent2.xlsx,1385,614,508,0.705,0.583,0.638,0.694
+Leakage,LeakEvent3.xlsx,1355,696,810,0.859,1.0,0.924,0.914
+Sensor Failure,SensorEvent1.xlsx,1360,177,187,0.594,0.627,0.61,0.781
+Sensor Failure,SensorEvent23.xlsx,1362,152,345,0.397,0.901,0.551,0.865
+Sensor Failure,SensorEvent45.xlsx,1361,159,298,0.322,0.604,0.42,0.718
+Sensor Failure,SensorEvent67.xlsx,1362,122,223,0.296,0.541,0.383,0.707
