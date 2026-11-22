@@ -1,5 +1,7 @@
 # JalGuard AI
 
+Live demo project- https://main.d3tvq4hm8oszdm.amplifyapp.com/
+
 Explore how weather and water-network sensor readings can help an analyst investigate a possible anomaly. The React dashboard pairs a Pune weather view with synthetic sensor scenarios. A separate FastAPI service scores a supplied sensor reading using an experimental classifier.
 
 ## Explore the project
