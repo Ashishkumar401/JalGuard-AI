@@ -1,46 +1,28 @@
-# JalGuard AI — beginner starter
+# JalGuard AI
 
-This is a working frontend-first MVP for Environmental Hacks. It has a responsive dashboard, weather trend, synthetic anomaly demo, evidence-based investigation screen, and what-if simulator.
+Explore how weather and water-network sensor readings can help an analyst investigate a possible anomaly. The React dashboard pairs a Pune weather view with synthetic sensor scenarios. A separate FastAPI service scores a supplied sensor reading using an experimental classifier.
 
-## Data honesty
-The bundled weather values are fallback/demo values. Run `python scripts/fetch_weather.py` to fetch real Open-Meteo historical data. Sensor rows are explicitly synthetic—not BattLeDIM measurements and not Pune incidents. Review any downloaded dataset's schema, date coverage, and licence before making claims.
+## Explore the project
 
-## Requirements
-- Node.js 20+ (LTS recommended)
-- Python 3.10+ (optional, for weather script)
-- VS Code, Git, GitHub account
+| Start here | What to look for |
+| --- | --- |
+| [Investigation logic](frontend/src/investigationEngine.js) | How the dashboard assembles evidence for a scenario |
+| [Pune map](frontend/src/PuneFloodMap.jsx) | The geographic view used in the dashboard |
+| [Prediction API](api.py) | Feature validation, model inference and the event probability returned to the caller |
+| [Holdout results](baseline_file_holdout_results.csv) | Recorded evaluation results for the baseline experiment |
 
-## Run it locally (beginner steps)
-1. Extract the ZIP.
-2. Open the extracted `jalguard-ai-starter` folder in VS Code.
-3. Click Terminal > New Terminal.
-4. Run `cd frontend`
-5. Run `npm install`
-6. Run `npm run dev`
-7. Open the localhost link printed in the terminal, usually `http://localhost:5173`.
-8. Leave the terminal running. Stop the server with Ctrl+C.
+## Run the dashboard
 
-## Fetch real weather (optional)
-From the project root, run:
-`python -m pip install -r requirements.txt`
-then:
-`python scripts/fetch_weather.py`
+From the repository root, with Node.js 20 or later installed:
 
-## Deploy to AWS Amplify Hosting
-1. Push this folder to a public GitHub repository.
-2. In AWS Console, open AWS Amplify and choose Deploy/Host web app.
-3. Connect GitHub and select this repository.
-4. Set the app root directory to `frontend`.
-5. Build command: `npm run build`; output directory: `dist`.
-6. Deploy and test the HTTPS URL in a private/incognito browser.
-7. Check AWS billing and budget alerts. This starter needs no database, EC2, NAT Gateway, or hosted LLM.
+```sh
+cd frontend
+npm ci
+npm run dev
+```
 
-## GitHub push (from project root)
-`git init`
-`git add .`
-`git commit -m "Build JalGuard AI starter"`
-`git branch -M main`
-`git remote add origin https://github.com/YOUR-USERNAME/jalguard-ai.git`
-`git push -u origin main`
+Open the local URL printed by Vite. Explore a synthetic anomaly, inspect its evidence and change the scenario in the simulator. To build the static site, run `npm run build` inside `frontend`. The build output is `dist`.
 
-Replace the URL with your own repository URL.
+## Interpreting the data
+
+The dashboard ships with fallback weather values. To refresh historical weather, install the Python dependencies from the root with `python -m pip install -r requirements.txt`, then run `python scripts/fetch_weather.py`. The example sensor records are synthetic. The classifier predicts research-dataset labels and has not been validated on a live water network. [Data sources and limitations](data/README.md)
